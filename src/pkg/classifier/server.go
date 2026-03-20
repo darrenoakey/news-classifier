@@ -34,6 +34,7 @@ func NewServer(c *Classifier, addr string) *Server {
 	s := &Server{c: c, addr: addr, mux: http.NewServeMux()}
 	s.mux.HandleFunc("/classify", s.handleClassify)
 	s.mux.HandleFunc("/execute", s.handleExecute)
+	s.mux.HandleFunc("/reload", s.handleReload)
 	s.mux.HandleFunc("/health", handleHealth)
 	return s
 }
@@ -101,6 +102,17 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out) //nolint:errcheck
+}
+
+// handleReload re-reads models from disk. Called by the training cell after
+// producing new models. GET or POST both accepted.
+func (s *Server) handleReload(w http.ResponseWriter, _ *http.Request) {
+	if err := s.c.Reload(); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintln(w, `{"ok":true,"reloaded":true}`)
 }
 
 // handleHealth handles GET /health.

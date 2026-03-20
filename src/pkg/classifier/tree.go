@@ -12,7 +12,7 @@ type treeData struct {
 	Threshold     []float64   `json:"threshold"`
 	ChildrenLeft  []int       `json:"children_left"`
 	ChildrenRight []int       `json:"children_right"`
-	Value         [][]float64 `json:"value"` // [n_nodes][n_classes]
+	Value         [][][]float64 `json:"value"` // [n_nodes][n_outputs][n_classes]
 	Classes       []string    `json:"classes"`
 }
 
@@ -55,7 +55,8 @@ func (m *TreeModel) Predict(title string) string {
 			node = t.ChildrenRight[node]
 		}
 	}
-	counts := t.Value[node]
+	// Value is [n_nodes][n_outputs][n_classes]; single-output → index [node][0]
+	counts := t.Value[node][0]
 	bestIdx := 0
 	for i := 1; i < len(counts); i++ {
 		if counts[i] > counts[bestIdx] {

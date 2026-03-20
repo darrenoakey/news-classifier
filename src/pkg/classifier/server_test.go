@@ -1,0 +1,172 @@
+package classifier
+
+import (
+	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+)
+
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	c, err := New(testModelDir)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	return NewServer(c, ":0")
+}
+
+func TestHealthEndpoint(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/health", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("/health status = %d, want 200", w.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode /health response: %v", err)
+	}
+	if ok, _ := body["ok"].(bool); !ok {
+		t.Errorf("/health response ok = %v, want true", body["ok"])
+	}
+}
+
+func TestClassifyEndpoint(t *testing.T) {
+	srv := newTestServer(t)
+
+	cases := []struct {
+		name  string
+		title string
+	}{
+		{"ai news", "OpenAI releases new GPT model with improved capabilities"},
+		{"local news", "City council votes on new parking meter rates downtown"},
+		{"empty", ""},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body, _ := json.Marshal(map[string]string{"title": tc.title})
+			req := httptest.NewRequest(http.MethodPost, "/classify", bytes.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+
+			if w.Code != http.StatusOK {
+				t.Fatalf("/classify status = %d, want 200", w.Code)
+			}
+			var result Result
+			if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
+				t.Fatalf("decode /classify response: %v", err)
+			}
+			if tc.title == "" {
+				if result.TreeLabel != "unclassified" {
+					t.Errorf("empty title TreeLabel = %q, want unclassified", result.TreeLabel)
+				}
+			} else {
+				validLabels := map[string]bool{"great": true, "good": true, "other": true}
+				if !validLabels[result.TreeLabel] {
+					t.Errorf("TreeLabel = %q, want great/good/other", result.TreeLabel)
+				}
+				if !validLabels[result.SVMLabel] {
+					t.Errorf("SVMLabel = %q, want great/good/other", result.SVMLabel)
+				}
+			}
+		})
+	}
+}
+
+func TestClassifyEndpointMethodNotAllowed(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/classify", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("/classify GET status = %d, want 405", w.Code)
+	}
+}
+
+func TestClassifyEndpointBadJSON(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodPost, "/classify", bytes.NewBufferString("not json"))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("/classify bad JSON status = %d, want 400", w.Code)
+	}
+}
+
+func TestExecuteEndpoint(t *testing.T) {
+	srv := newTestServer(t)
+
+	envelope := map[string]any{
+		"input": map[string]any{
+			"title":     "OpenAI releases GPT-5",
+			"link":      "https://example.com/article",
+			"feed_name": "Tech News",
+			"published": "2026-01-01",
+		},
+		"config":   map[string]any{},
+		"function": "compute",
+	}
+	body, _ := json.Marshal(envelope)
+	req := httptest.NewRequest(http.MethodPost, "/execute", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("/execute status = %d, want 200", w.Code)
+	}
+	var out map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
+		t.Fatalf("decode /execute response: %v", err)
+	}
+	requiredFields := []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "feed_name", "published"}
+	for _, f := range requiredFields {
+		if _, ok := out[f]; !ok {
+			t.Errorf("/execute response missing field %q", f)
+		}
+	}
+}
+
+func TestExecuteEndpointPassthrough(t *testing.T) {
+	srv := newTestServer(t)
+
+	envelope := map[string]any{
+		"input": map[string]any{
+			"title":    "Some news article",
+			"link":     "https://example.com/news",
+			"summary":  "Article summary here",
+			"feed_url": "https://example.com/feed.xml",
+		},
+		"config":   map[string]any{},
+		"function": "compute",
+	}
+	body, _ := json.Marshal(envelope)
+	req := httptest.NewRequest(http.MethodPost, "/execute", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+
+	var out map[string]any
+	json.Unmarshal(w.Body.Bytes(), &out) //nolint:errcheck
+
+	for _, field := range []string{"link", "summary", "feed_url"} {
+		if _, ok := out[field]; !ok {
+			t.Errorf("/execute response missing passthrough field %q", field)
+		}
+	}
+}
+
+func TestExecuteEndpointMethodNotAllowed(t *testing.T) {
+	srv := newTestServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/execute", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("/execute GET status = %d, want 405", w.Code)
+	}
+}

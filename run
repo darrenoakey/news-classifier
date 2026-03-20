@@ -1,0 +1,23 @@
+#!/bin/bash
+set -euo pipefail
+cd "$(dirname "$0")/src"
+
+case "${1:-}" in
+  build)
+    go build -o ../output/bin/news-classifier ./cmd/classifier
+    echo "built: output/bin/news-classifier"
+    ;;
+  check)
+    gofmt -l . && go vet ./... && go test ./... -count=1
+    ;;
+  start)
+    go run ./cmd/classifier "${@:2}"
+    ;;
+  test)
+    go test ./... -count=1 -v 2>&1 | tee ../output/testing/test.log
+    ;;
+  *)
+    echo "Usage: run {build|check|start|test}"
+    exit 1
+    ;;
+esac

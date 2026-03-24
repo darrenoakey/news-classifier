@@ -8,12 +8,12 @@ import (
 
 // treeData holds the raw decision tree structure exported from sklearn.
 type treeData struct {
-	Feature       []int       `json:"feature"`
-	Threshold     []float64   `json:"threshold"`
-	ChildrenLeft  []int       `json:"children_left"`
-	ChildrenRight []int       `json:"children_right"`
+	Feature       []int         `json:"feature"`
+	Threshold     []float64     `json:"threshold"`
+	ChildrenLeft  []int         `json:"children_left"`
+	ChildrenRight []int         `json:"children_right"`
 	Value         [][][]float64 `json:"value"` // [n_nodes][n_outputs][n_classes]
-	Classes       []string    `json:"classes"`
+	Classes       []string      `json:"classes"`
 }
 
 // TreeModel is an exported sklearn DecisionTreeClassifier with CountVectorizer.

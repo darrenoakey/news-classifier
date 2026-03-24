@@ -1,3 +1,4 @@
 output/
 local/
+news-classifier
 src/go.sum

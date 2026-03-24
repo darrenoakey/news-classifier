@@ -11,7 +11,7 @@ case "${1:-}" in
     gofmt -l . && go vet ./... && go test ./... -count=1
     ;;
   start)
-    go run ./cmd/classifier "${@:2}"
+    ../output/bin/news-classifier "${@:2}"
     ;;
   test)
     go test ./... -count=1 -v 2>&1 | tee ../output/testing/test.log

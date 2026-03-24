@@ -34,6 +34,7 @@ func NewServer(c *Classifier, addr string) *Server {
 	s := &Server{c: c, addr: addr, mux: http.NewServeMux()}
 	s.mux.HandleFunc("/classify", s.handleClassify)
 	s.mux.HandleFunc("/execute", s.handleExecute)
+	s.mux.HandleFunc("/execute-batch", s.handleExecuteBatch)
 	s.mux.HandleFunc("/reload", s.handleReload)
 	s.mux.HandleFunc("/health", handleHealth)
 	return s
@@ -102,6 +103,47 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(out) //nolint:errcheck
+}
+
+// handleExecuteBatch handles POST /execute-batch.
+// Body: JSON array of executeEnvelope objects. Returns JSON array of results in the same order.
+func (s *Server) handleExecuteBatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var envs []executeEnvelope
+	if err := json.NewDecoder(r.Body).Decode(&envs); err != nil {
+		http.Error(w, "bad request: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	results := make([]map[string]any, len(envs))
+	for i, env := range envs {
+		title := ""
+		if v, ok := env.Input["title"]; ok {
+			title, _ = v.(string)
+		}
+
+		result := s.c.Classify(title)
+
+		out := map[string]any{
+			"title":      title,
+			"tree_label": result.TreeLabel,
+			"tree_score": result.TreeScore,
+			"svm_label":  result.SVMLabel,
+			"svm_score":  result.SVMScore,
+		}
+		for _, field := range passthroughFields {
+			if v, ok := env.Input[field]; ok {
+				out[field] = v
+			}
+		}
+		results[i] = out
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results) //nolint:errcheck
 }
 
 // handleReload re-reads models from disk. Called by the training cell after

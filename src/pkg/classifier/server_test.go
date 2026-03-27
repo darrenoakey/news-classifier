@@ -125,7 +125,7 @@ func TestExecuteEndpoint(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &out); err != nil {
 		t.Fatalf("decode /execute response: %v", err)
 	}
-	requiredFields := []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "feed_name", "published"}
+	requiredFields := []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "feed_name", "published", "classified_at"}
 	for _, f := range requiredFields {
 		if _, ok := out[f]; !ok {
 			t.Errorf("/execute response missing field %q", f)
@@ -214,14 +214,14 @@ func TestExecuteBatchEndpoint(t *testing.T) {
 	}
 
 	// First item: classification fields + passthrough link/feed_name/published
-	for _, f := range []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "feed_name", "published"} {
+	for _, f := range []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "feed_name", "published", "classified_at"} {
 		if _, ok := out[0][f]; !ok {
 			t.Errorf("/execute-batch item 0 missing field %q", f)
 		}
 	}
 
 	// Second item: classification fields + passthrough link/summary/feed_url
-	for _, f := range []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "summary", "feed_url"} {
+	for _, f := range []string{"title", "tree_label", "tree_score", "svm_label", "svm_score", "link", "summary", "feed_url", "classified_at"} {
 		if _, ok := out[1][f]; !ok {
 			t.Errorf("/execute-batch item 1 missing field %q", f)
 		}

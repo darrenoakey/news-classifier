@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 )
 
 // Server wraps a Classifier in an HTTP handler.
@@ -89,11 +90,12 @@ func (s *Server) handleExecute(w http.ResponseWriter, r *http.Request) {
 	result := s.c.Classify(title)
 
 	out := map[string]any{
-		"title":      title,
-		"tree_label": result.TreeLabel,
-		"tree_score": result.TreeScore,
-		"svm_label":  result.SVMLabel,
-		"svm_score":  result.SVMScore,
+		"title":         title,
+		"tree_label":    result.TreeLabel,
+		"tree_score":    result.TreeScore,
+		"svm_label":     result.SVMLabel,
+		"svm_score":     result.SVMScore,
+		"classified_at": time.Now().Format("2006-01-02"),
 	}
 	for _, field := range passthroughFields {
 		if v, ok := env.Input[field]; ok {
@@ -128,11 +130,12 @@ func (s *Server) handleExecuteBatch(w http.ResponseWriter, r *http.Request) {
 		result := s.c.Classify(title)
 
 		out := map[string]any{
-			"title":      title,
-			"tree_label": result.TreeLabel,
-			"tree_score": result.TreeScore,
-			"svm_label":  result.SVMLabel,
-			"svm_score":  result.SVMScore,
+			"title":         title,
+			"tree_label":    result.TreeLabel,
+			"tree_score":    result.TreeScore,
+			"svm_label":     result.SVMLabel,
+			"svm_score":     result.SVMScore,
+			"classified_at": time.Now().Format("2006-01-02"),
 		}
 		for _, field := range passthroughFields {
 			if v, ok := env.Input[field]; ok {
